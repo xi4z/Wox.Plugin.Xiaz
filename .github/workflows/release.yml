@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Package .wox
+        run: |
+          VERSION=$(node -p "require('./plugin.json').Version")
+          mkdir -p out
+          (cd dist && zip -r "../out/Wox.Plugin.Xiaz-${VERSION}.wox" .)
+          ls -lh out
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ -f "docs/release-notes/${TAG}.md" ]; then
+            gh release create "$TAG" out/*.wox --title "$TAG" --notes-file "docs/release-notes/${TAG}.md"
+          else
+            gh release create "$TAG" out/*.wox --title "$TAG" --generate-notes
+          fi
