@@ -2,6 +2,8 @@
 
 A Wox plugin that shows local Codex, Cursor, Claude, Grok, and OpenCode Go quotas inside the launcher.
 
+> Based on [Wox-launcher/Wox.Plugin.AIQuota](https://github.com/Wox-launcher/Wox.Plugin.AIQuota); this copy adds the OpenCode Go allowance.
+
 ![Screenshot of AI Quota in Wox](./screenshot.png)
 
 ## Install
