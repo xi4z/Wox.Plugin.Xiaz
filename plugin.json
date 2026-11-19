@@ -17,12 +17,16 @@
     {
       "Command": "claude",
       "Description": "i18n:command_claude"
+    },
+    {
+      "Command": "opencode",
+      "Description": "i18n:command_opencode"
     }
   ],
   "Name": "i18n:plugin_name",
   "Description": "i18n:plugin_desc",
   "Author": "Wox-launcher",
-  "Version": "0.6.1",
+  "Version": "0.7.0",
   "MinWoxVersion": "2.4.4",
   "Runtime": "nodejs",
   "Website": "https://github.com/Wox-launcher/Wox.Plugin.AIQuota",
@@ -31,7 +35,7 @@
   "I18n": {
     "en_US": {
       "plugin_name": "AI Quota",
-      "plugin_desc": "Show Codex, Cursor, Claude, and Grok quotas inside Wox.",
+      "plugin_desc": "Show Codex, Cursor, Claude, Grok, and OpenCode Go quotas inside Wox.",
       "result_title": "Codex Usage",
       "cursor_result_title": "Cursor Usage",
       "cursor_error_title": "Cursor usage unavailable",
@@ -44,6 +48,22 @@
       "command_codex": "Show Codex usage",
       "command_grok": "Show Grok usage",
       "command_claude": "Show Claude usage",
+      "command_opencode": "Show OpenCode Go usage",
+      "opencode_result_title": "OpenCode Go Usage",
+      "opencode_error_title": "OpenCode Go usage unavailable",
+      "group_opencode": "OpenCode",
+      "window_opencode_rolling": "Rolling",
+      "window_opencode_weekly": "Week",
+      "window_opencode_monthly": "Month",
+      "opencode_no_live_data": "No live OpenCode Go usage data",
+      "opencode_missing_key": "Set the %s environment variable to an OpenCode Go API key",
+      "opencode_invalid_key": "OpenCode Go API key is invalid or revoked",
+      "opencode_not_subscribed": "This API key is not subscribed to OpenCode Go",
+      "opencode_query_rate_limited": "OpenCode rate limited the usage query; retry shortly",
+      "opencode_incomplete_usage": "OpenCode returned an incomplete usage payload",
+      "opencode_partial_data": "partial data",
+      "opencode_window_reset": "%s · %s reset in %s",
+      "opencode_window_reset_limited": "%s · %s rate limited · reset in %s",
       "action_copy_summary": "Copy summary",
       "action_copy_json": "Copy raw JSON",
       "action_refresh": "Refresh",
@@ -101,7 +121,7 @@
     },
     "zh_CN": {
       "plugin_name": "AI Quota",
-      "plugin_desc": "在 Wox 中查看 Codex、Cursor、Claude 和 Grok 的配额。",
+      "plugin_desc": "在 Wox 中查看 Codex、Cursor、Claude、Grok 和 OpenCode Go 的配额。",
       "result_title": "Codex Usage",
       "cursor_result_title": "Cursor Usage",
       "cursor_error_title": "Cursor 用量不可用",
@@ -114,6 +134,22 @@
       "command_codex": "显示 Codex 用量",
       "command_grok": "显示 Grok 用量",
       "command_claude": "显示 Claude 用量",
+      "command_opencode": "显示 OpenCode Go 用量",
+      "opencode_result_title": "OpenCode Go 用量",
+      "opencode_error_title": "OpenCode Go 用量不可用",
+      "group_opencode": "OpenCode",
+      "window_opencode_rolling": "滚动",
+      "window_opencode_weekly": "周",
+      "window_opencode_monthly": "月",
+      "opencode_no_live_data": "暂无 OpenCode Go 用量数据",
+      "opencode_missing_key": "请把环境变量 %s 设为 OpenCode Go API Key",
+      "opencode_invalid_key": "OpenCode Go API Key 无效或已被撤销",
+      "opencode_not_subscribed": "该 API Key 未订阅 OpenCode Go",
+      "opencode_query_rate_limited": "OpenCode 限制了用量查询频率，请稍后重试",
+      "opencode_incomplete_usage": "OpenCode 返回的用量数据不完整",
+      "opencode_partial_data": "数据不完整",
+      "opencode_window_reset": "%s · %s重置还剩%s",
+      "opencode_window_reset_limited": "%s · %s已限流 · 重置还剩%s",
       "action_copy_summary": "复制摘要",
       "action_copy_json": "复制原始 JSON",
       "action_refresh": "刷新",
@@ -201,6 +237,19 @@
         "Label": "Fill progress bars as quota is used",
         "DefaultValue": "false",
         "Tooltip": "When enabled, bars fill up as the quota is consumed and show the used percentage. When disabled, bars drain as the quota is consumed and show the remaining percentage."
+      }
+    },
+    {
+      "Type": "textbox",
+      "Value": {
+        "Key": "opencodeGoEnvVar",
+        "Label": "OpenCode Go API key environment variable",
+        "DefaultValue": "OPENCODE_GO_API_KEY",
+        "Tooltip": "Environment variable that holds your OpenCode Go API key. Create the key in the OpenCode Console, set the variable for the user that runs Wox, then restart Wox.",
+        "MaxLines": 1,
+        "Style": {
+          "Width": 320
+        }
       }
     }
   ]

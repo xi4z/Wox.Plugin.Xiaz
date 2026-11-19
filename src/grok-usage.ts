@@ -276,7 +276,7 @@ export function shouldShowGrokReset(snapshot: Pick<GrokUsageSnapshot, "creditUsa
   return snapshot.creditUsagePercent !== null && snapshot.creditUsagePercent > 0 && snapshot.billingCycleEnd !== null
 }
 
-export function shouldShowGrokResult(snapshot: GrokUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude"): boolean {
+export function shouldShowGrokResult(snapshot: GrokUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"): boolean {
   if (snapshot.availability === "pending") {
     return false
   }

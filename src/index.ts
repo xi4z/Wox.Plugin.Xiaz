@@ -1,6 +1,16 @@
 import { Context, Plugin, PluginInitParams, PublicAPI, Query, Result, ResultAction, ResultTail } from "@wox-launcher/wox-plugin"
 
-import { CachedCodexUsageProvider, CodexUsageSnapshot, CodexWindowLabels, listCodexWindows, RateLimitWindowInfo, resolveCodexPlanName, resolveCodexWindowLabel, shouldShowCodexResult, UsageProvider } from "./codex-usage"
+import {
+  CachedCodexUsageProvider,
+  CodexUsageSnapshot,
+  CodexWindowLabels,
+  listCodexWindows,
+  RateLimitWindowInfo,
+  resolveCodexPlanName,
+  resolveCodexWindowLabel,
+  shouldShowCodexResult,
+  UsageProvider
+} from "./codex-usage"
 import {
   CachedCursorUsageProvider,
   CursorSandUsage,
@@ -28,7 +38,22 @@ import {
   shouldShowClaudeResult
 } from "./claude-usage"
 import { CachedGrokUsageProvider, getGrokRemainingPercent, GrokPeriodType, GrokUsageProvider, GrokUsageSnapshot, shouldShowGrokReset, shouldShowGrokResult } from "./grok-usage"
-import { CLAUDE_ICON, CODEX_ICON, CURSOR_ICON, GROK_BOT_ICON, GROK_ICON } from "./icons"
+import {
+  CachedOpencodeUsageProvider,
+  listOpencodeWindows,
+  OpencodeUsageProvider,
+  OpencodeUsageSnapshot,
+  OpencodeUsageWindow,
+  OpencodeWindowId,
+  OPENCODE_WARNING_INCOMPLETE_USAGE,
+  OPENCODE_WARNING_INVALID_KEY,
+  OPENCODE_WARNING_MISSING_KEY,
+  OPENCODE_WARNING_NOT_SUBSCRIBED,
+  OPENCODE_WARNING_PARTIAL_USAGE,
+  OPENCODE_WARNING_QUERY_RATE_LIMITED,
+  shouldShowOpencodeResult
+} from "./opencode-usage"
+import { CLAUDE_ICON, CODEX_ICON, CURSOR_ICON, GROK_BOT_ICON, GROK_ICON, OPENCODE_ICON } from "./icons"
 
 export type BarFillMode = "remaining" | "used"
 
@@ -77,6 +102,19 @@ interface LocaleStrings {
   windowGrokBuild: string
   windowGrokChat: string
   windowGrokBot: string
+  groupOpencode: string
+  windowOpencodeRolling: string
+  windowOpencodeWeekly: string
+  windowOpencodeMonthly: string
+  opencodeNoLiveData: string
+  opencodeMissingKey: string
+  opencodeInvalidKey: string
+  opencodeNotSubscribed: string
+  opencodeQueryRateLimited: string
+  opencodeIncompleteUsage: string
+  opencodePartialData: string
+  opencodeWindowReset: string
+  opencodeWindowResetLimited: string
   timeUnknown: string
   timeSoon: string
   unitDayShort: string
@@ -128,6 +166,19 @@ const DEFAULT_LOCALE_STRINGS: LocaleStrings = {
   windowGrokBuild: "Build",
   windowGrokChat: "Chat",
   windowGrokBot: "Bot",
+  groupOpencode: "OpenCode",
+  windowOpencodeRolling: "Rolling",
+  windowOpencodeWeekly: "Week",
+  windowOpencodeMonthly: "Month",
+  opencodeNoLiveData: "No live OpenCode Go usage data",
+  opencodeMissingKey: "Set the %s environment variable to an OpenCode Go API key",
+  opencodeInvalidKey: "OpenCode Go API key is invalid or revoked",
+  opencodeNotSubscribed: "This API key is not subscribed to OpenCode Go",
+  opencodeQueryRateLimited: "OpenCode rate limited the usage query; retry shortly",
+  opencodeIncompleteUsage: "OpenCode returned an incomplete usage payload",
+  opencodePartialData: "partial data",
+  opencodeWindowReset: "%s · %s reset in %s",
+  opencodeWindowResetLimited: "%s · %s rate limited · reset in %s",
   timeUnknown: "unknown",
   timeSoon: "soon",
   unitDayShort: "d",
@@ -142,12 +193,14 @@ export class AIQuotaPlugin implements Plugin {
   private cursorProvider: CursorUsageProvider
   private grokProvider: GrokUsageProvider
   private claudeProvider: ClaudeUsageProvider
+  private opencodeProvider: OpencodeUsageProvider
 
-  constructor(provider?: UsageProvider, cursorProvider?: CursorUsageProvider, grokProvider?: GrokUsageProvider, claudeProvider?: ClaudeUsageProvider) {
+  constructor(provider?: UsageProvider, cursorProvider?: CursorUsageProvider, grokProvider?: GrokUsageProvider, claudeProvider?: ClaudeUsageProvider, opencodeProvider?: OpencodeUsageProvider) {
     this.provider = provider || new CachedCodexUsageProvider()
     this.cursorProvider = cursorProvider || new CachedCursorUsageProvider()
     this.grokProvider = grokProvider || new CachedGrokUsageProvider()
     this.claudeProvider = claudeProvider || new CachedClaudeUsageProvider()
+    this.opencodeProvider = opencodeProvider || new CachedOpencodeUsageProvider()
     this.init = this.init.bind(this)
     this.query = this.query.bind(this)
   }
@@ -158,6 +211,7 @@ export class AIQuotaPlugin implements Plugin {
     await this.cursorProvider.start(ctx, this.api)
     await this.grokProvider.start(ctx, this.api)
     await this.claudeProvider.start(ctx, this.api)
+    await this.opencodeProvider.start(ctx, this.api)
     await safeLog(this.api, ctx, "Info", "AI Quota plugin initialized")
   }
 
@@ -236,6 +290,21 @@ export class AIQuotaPlugin implements Plugin {
       }
     }
 
+    if (includesProvider(filter, "opencode")) {
+      try {
+        const snapshot = forceRefresh ? await this.opencodeProvider.refresh(ctx, this.api) : await this.opencodeProvider.getSnapshot(ctx, this.api)
+        if (shouldShowOpencodeResult(snapshot, filter)) {
+          results.push(...(await buildOpencodeResults(snapshot, this.api, ctx, this.opencodeProvider)))
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await safeLog(this.api, ctx, "Error", "Failed to read OpenCode Go usage: " + message)
+        if (filter === "opencode") {
+          results.push(buildOpencodeErrorResult(message, this.api, ctx, this.opencodeProvider))
+        }
+      }
+    }
+
     return results
   }
 }
@@ -247,7 +316,7 @@ export function shouldForceRefresh(search: string): boolean {
   return normalized === "refresh" || normalized === "reload" || normalized.endsWith(" refresh") || normalized.endsWith(" reload")
 }
 
-export type UsageFilter = "all" | "codex" | "cursor" | "grok" | "claude"
+export type UsageFilter = "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"
 
 export function includesProvider(filter: UsageFilter, provider: Exclude<UsageFilter, "all">): boolean {
   return filter === "all" || filter === provider
@@ -271,6 +340,10 @@ export function resolveUsageFilter(query: Pick<Query, "Search"> & { Command?: st
     return "claude"
   }
 
+  if (command === "opencode") {
+    return "opencode"
+  }
+
   const search = query.Search.trim().toLowerCase()
   if (search === "cursor" || search.startsWith("cursor ")) {
     return "cursor"
@@ -286,6 +359,10 @@ export function resolveUsageFilter(query: Pick<Query, "Search"> & { Command?: st
 
   if (search === "claude" || search.startsWith("claude ")) {
     return "claude"
+  }
+
+  if (search === "opencode" || search.startsWith("opencode ")) {
+    return "opencode"
   }
 
   return "all"
@@ -533,6 +610,146 @@ export async function buildGrokBotResults(snapshot: CursorUsageSnapshot, api: Pu
       usageGroup(strings.groupGrok, 80),
       70
     )
+  ]
+}
+
+export async function buildOpencodeResults(snapshot: OpencodeUsageSnapshot, api: PublicAPI, ctx: Context, provider: OpencodeUsageProvider): Promise<Result[]> {
+  const strings = await readLocaleStrings(api, ctx)
+  const barMode = await readBarFillMode(api, ctx)
+  const group = usageGroup(strings.groupOpencode, 85)
+  const actions = buildOpencodeActions(api, ctx, provider)
+  const planName = snapshot.planName !== null ? snapshot.planName : "Go"
+
+  if (snapshot.availability !== "ready") {
+    return [
+      groupedResult(
+        {
+          Id: "opencode-usage-overview",
+          Title: "i18n:opencode_result_title",
+          SubTitle: buildOpencodeSubtitle(snapshot, strings),
+          Icon: OPENCODE_ICON,
+          Tails: [],
+          Actions: actions
+        },
+        group,
+        85
+      )
+    ]
+  }
+
+  const windows = listOpencodeWindows(snapshot.windows)
+  const results: Result[] = windows.map((window: OpencodeUsageWindow, index: number) => {
+    const label = opencodeWindowLabel(window.id, strings)
+    return groupedResult(
+      {
+        Id: "opencode-usage-" + window.id,
+        Title: formatTemplate(strings.namedUsageTitle, strings.groupOpencode, label),
+        SubTitle: buildOpencodeWindowSubtitle(planName, window, strings),
+        Icon: OPENCODE_ICON,
+        Tails: [buildRemainingProgressTail(label, window.remainingPercent, barMode)],
+        Actions: actions
+      },
+      group,
+      85 - index
+    )
+  })
+
+  if (results.length === 0) {
+    return [
+      groupedResult(
+        {
+          Id: "opencode-usage-overview",
+          Title: "i18n:opencode_result_title",
+          SubTitle: buildOpencodeSubtitle(snapshot, strings),
+          Icon: OPENCODE_ICON,
+          Tails: [],
+          Actions: actions
+        },
+        group,
+        85
+      )
+    ]
+  }
+
+  return results
+}
+
+function buildOpencodeSubtitle(snapshot: OpencodeUsageSnapshot, strings: LocaleStrings): string {
+  const warnings = snapshot.warnings
+
+  if (warnings.indexOf(OPENCODE_WARNING_MISSING_KEY) >= 0) {
+    return formatTemplate(strings.opencodeMissingKey, snapshot.envVar)
+  }
+
+  if (warnings.indexOf(OPENCODE_WARNING_INVALID_KEY) >= 0) {
+    return strings.opencodeInvalidKey
+  }
+
+  if (warnings.indexOf(OPENCODE_WARNING_NOT_SUBSCRIBED) >= 0) {
+    return strings.opencodeNotSubscribed
+  }
+
+  if (warnings.indexOf(OPENCODE_WARNING_QUERY_RATE_LIMITED) >= 0) {
+    return strings.opencodeQueryRateLimited
+  }
+
+  if (warnings.indexOf(OPENCODE_WARNING_INCOMPLETE_USAGE) >= 0) {
+    return strings.opencodeIncompleteUsage
+  }
+
+  if (snapshot.availability !== "ready") {
+    return warnings.length > 0 ? warnings[0] : strings.opencodeNoLiveData
+  }
+
+  const planName = snapshot.planName !== null ? snapshot.planName : "Go"
+  if (warnings.indexOf(OPENCODE_WARNING_PARTIAL_USAGE) >= 0) {
+    return planName + " | " + strings.opencodePartialData
+  }
+
+  return planName
+}
+
+function buildOpencodeWindowSubtitle(planName: string, window: OpencodeUsageWindow, strings: LocaleStrings): string {
+  const template = window.limited ? strings.opencodeWindowResetLimited : strings.opencodeWindowReset
+  return formatTemplate(template, planName, opencodeWindowLabel(window.id, strings), formatRelativeResetAt(window.resetsAt, strings))
+}
+
+function opencodeWindowLabel(id: OpencodeWindowId, strings: LocaleStrings): string {
+  if (id === "rolling") {
+    return strings.windowOpencodeRolling
+  }
+
+  if (id === "weekly") {
+    return strings.windowOpencodeWeekly
+  }
+
+  return strings.windowOpencodeMonthly
+}
+
+function buildOpencodeActions(api: PublicAPI, ctx: Context, provider: OpencodeUsageProvider): ResultAction[] {
+  return [
+    {
+      Id: "refresh-opencode",
+      Name: "i18n:action_refresh",
+      Icon: {
+        ImageType: "svg",
+        ImageData: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="#0c4cf0" d="M12 20q-3.35 0-5.675-2.325T4 12t2.325-5.675T12 4q1.725 0 3.3.712T18 6.75V4h2v7h-7V9h4.2q-.8-1.4-2.187-2.2T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.65 14h2.1q-.7 2.65-2.85 4.325T12 20"/></svg>`
+      },
+      PreventHideAfterAction: true,
+      Action: async actionCtx => {
+        await safeLog(api, ctx, "Info", "Refreshing OpenCode Go usage")
+        try {
+          await provider.refresh(ctx, api)
+        } catch (error) {
+          await safeLog(api, ctx, "Warning", "Manual OpenCode Go usage refresh failed: " + (error instanceof Error ? error.message : String(error)))
+        }
+        if (typeof api.RefreshQuery === "function") {
+          await api.RefreshQuery(actionCtx, {
+            PreserveSelectedIndex: true
+          })
+        }
+      }
+    }
   ]
 }
 
@@ -1368,6 +1585,49 @@ function buildGrokErrorResult(message: string, api: PublicAPI, ctx: Context, pro
   }
 }
 
+function buildOpencodeErrorResult(message: string, api: PublicAPI, ctx: Context, provider: OpencodeUsageProvider): Result {
+  return {
+    Id: "opencode-usage-error",
+    Title: "i18n:opencode_error_title",
+    SubTitle: message,
+    Icon: OPENCODE_ICON,
+    Group: DEFAULT_LOCALE_STRINGS.groupOpencode,
+    GroupScore: 85,
+    Score: 85,
+    Actions: [
+      {
+        Id: "copy-opencode-error",
+        Name: "i18n:action_copy_error",
+        IsDefault: true,
+        Action: async actionCtx => {
+          await api.Copy(actionCtx, {
+            type: "text",
+            text: message
+          })
+        }
+      },
+      {
+        Id: "refresh-opencode-error",
+        Name: "i18n:action_retry",
+        PreventHideAfterAction: true,
+        Action: async actionCtx => {
+          await safeLog(api, ctx, "Warning", "Retrying OpenCode Go usage fetch after error")
+          try {
+            await provider.refresh(ctx, api)
+          } catch (error) {
+            await safeLog(api, ctx, "Warning", "OpenCode Go usage retry failed: " + (error instanceof Error ? error.message : String(error)))
+          }
+          if (typeof api.RefreshQuery === "function") {
+            await api.RefreshQuery(actionCtx, {
+              PreserveSelectedIndex: false
+            })
+          }
+        }
+      }
+    ]
+  }
+}
+
 function buildErrorResult(message: string, api: PublicAPI, ctx: Context, provider: UsageProvider): Result {
   return {
     Id: "codex-usage-error",
@@ -1545,6 +1805,19 @@ async function readLocaleStrings(api: PublicAPI, ctx: Context): Promise<LocaleSt
     windowGrokBuild: await translate(api, ctx, "window_grok_build", DEFAULT_LOCALE_STRINGS.windowGrokBuild),
     windowGrokChat: await translate(api, ctx, "window_grok_chat", DEFAULT_LOCALE_STRINGS.windowGrokChat),
     windowGrokBot: await translate(api, ctx, "window_grok_bot", DEFAULT_LOCALE_STRINGS.windowGrokBot),
+    groupOpencode: await translate(api, ctx, "group_opencode", DEFAULT_LOCALE_STRINGS.groupOpencode),
+    windowOpencodeRolling: await translate(api, ctx, "window_opencode_rolling", DEFAULT_LOCALE_STRINGS.windowOpencodeRolling),
+    windowOpencodeWeekly: await translate(api, ctx, "window_opencode_weekly", DEFAULT_LOCALE_STRINGS.windowOpencodeWeekly),
+    windowOpencodeMonthly: await translate(api, ctx, "window_opencode_monthly", DEFAULT_LOCALE_STRINGS.windowOpencodeMonthly),
+    opencodeNoLiveData: await translate(api, ctx, "opencode_no_live_data", DEFAULT_LOCALE_STRINGS.opencodeNoLiveData),
+    opencodeMissingKey: await translate(api, ctx, "opencode_missing_key", DEFAULT_LOCALE_STRINGS.opencodeMissingKey),
+    opencodeInvalidKey: await translate(api, ctx, "opencode_invalid_key", DEFAULT_LOCALE_STRINGS.opencodeInvalidKey),
+    opencodeNotSubscribed: await translate(api, ctx, "opencode_not_subscribed", DEFAULT_LOCALE_STRINGS.opencodeNotSubscribed),
+    opencodeQueryRateLimited: await translate(api, ctx, "opencode_query_rate_limited", DEFAULT_LOCALE_STRINGS.opencodeQueryRateLimited),
+    opencodeIncompleteUsage: await translate(api, ctx, "opencode_incomplete_usage", DEFAULT_LOCALE_STRINGS.opencodeIncompleteUsage),
+    opencodePartialData: await translate(api, ctx, "opencode_partial_data", DEFAULT_LOCALE_STRINGS.opencodePartialData),
+    opencodeWindowReset: await translate(api, ctx, "opencode_window_reset", DEFAULT_LOCALE_STRINGS.opencodeWindowReset),
+    opencodeWindowResetLimited: await translate(api, ctx, "opencode_window_reset_limited", DEFAULT_LOCALE_STRINGS.opencodeWindowResetLimited),
     timeUnknown: await translate(api, ctx, "time_unknown", DEFAULT_LOCALE_STRINGS.timeUnknown),
     timeSoon: await translate(api, ctx, "time_soon", DEFAULT_LOCALE_STRINGS.timeSoon),
     unitDayShort: await translate(api, ctx, "unit_day_short", DEFAULT_LOCALE_STRINGS.unitDayShort),

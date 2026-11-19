@@ -262,7 +262,7 @@ function createUnavailableClaudeSnapshot(warnings: string[]): ClaudeUsageSnapsho
   }
 }
 
-export function shouldShowClaudeResult(snapshot: ClaudeUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude"): boolean {
+export function shouldShowClaudeResult(snapshot: ClaudeUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"): boolean {
   if (snapshot.availability === "pending") {
     return false
   }

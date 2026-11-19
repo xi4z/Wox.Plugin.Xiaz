@@ -302,7 +302,7 @@ function createUnavailableSnapshot(warnings: string[]): CursorUsageSnapshot {
   }
 }
 
-export function shouldShowCursorResult(snapshot: CursorUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude"): boolean {
+export function shouldShowCursorResult(snapshot: CursorUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"): boolean {
   if (snapshot.availability === "pending") {
     return false
   }
@@ -706,7 +706,7 @@ export function readSandUsage(value: unknown): CursorSandUsage | null {
   }
 }
 
-export function shouldShowGrokBotResult(snapshot: CursorUsageSnapshot | null, filter: "all" | "codex" | "cursor" | "grok" | "claude"): boolean {
+export function shouldShowGrokBotResult(snapshot: CursorUsageSnapshot | null, filter: "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"): boolean {
   if (snapshot === null || snapshot.availability === "pending" || snapshot.sandUsage === null) {
     return false
   }

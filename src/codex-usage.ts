@@ -280,7 +280,7 @@ export function createEmptyCodexSnapshot(): CodexUsageSnapshot {
   }
 }
 
-export function shouldShowCodexResult(snapshot: CodexUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude"): boolean {
+export function shouldShowCodexResult(snapshot: CodexUsageSnapshot, filter: "all" | "codex" | "cursor" | "grok" | "claude" | "opencode"): boolean {
   if (snapshot.availability === "pending") {
     return false
   }

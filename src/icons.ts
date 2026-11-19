@@ -24,6 +24,12 @@ export const CLAUDE_ICON: WoxImage = {
     '<svg fill="var(--wox-theme-icon-color)" fill-rule="evenodd" height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Claude</title><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.608 0L.012 20.459h3.7444l1.3693-3.5527h7.0054l1.3693 3.5528h3.7444L10.5362 3.541Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>'
 }
 
+export const OPENCODE_ICON: WoxImage = {
+  ImageType: "svg",
+  ImageData:
+    '<svg fill="var(--wox-theme-icon-color)" fill-rule="evenodd" height="1em" style="flex:none;line-height:1" viewBox="0 0 512 512" width="1em" xmlns="http://www.w3.org/2000/svg"><title>OpenCode</title><path d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z"></path><path d="M320 224V352H192V224H320Z" fill-opacity="0.35"></path></svg>'
+}
+
 export const GROK_BOT_ICON: WoxImage = {
   ImageType: "svg",
   ImageData:
